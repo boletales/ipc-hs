@@ -1,15 +1,15 @@
 {-# LANGUAGE OverloadedStrings  #-}
 module Main where
 
-import Lib
-import Parser
 import Types
+import Solver
+import Printer
+import Parser
 
 import Data.Text
 import Control.Category
 import Control.Monad.Except
 import Control.Monad.Trans.Except
-import Types
 import qualified Data.Text.IO as TIO
 import GHC.IO.Handle (hSetBuffering)
 import System.IO

@@ -25,8 +25,9 @@ source-repository head
 
 library
   exposed-modules:
-      Lib
       Parser
+      Printer
+      Solver
       Types
   other-modules:
       Paths_ipc_hs

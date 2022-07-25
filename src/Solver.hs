@@ -2,9 +2,10 @@
 {-# LANGUAGE TupleSections #-}
 {-# LANGUAGE ScopedTypeVariables #-}
 
-module Lib (tryProve) where
+module Solver (tryProve) where
 
 import Types
+import Printer
 import Data.Text as T
 import Data.Map as M
 import Data.Set as S
