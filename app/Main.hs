@@ -24,7 +24,7 @@ main =
       "-l":a:_  -> mainl    (pack a)
       "-lv":a:_ -> main'    (pack a)
       a:_ -> main''''' (pack a)
-      []  -> TIO.putStrLn "usage: ipc-hs [logic expression]"
+      []  -> TIO.putStrLn "usage: ipc-hs-exe [logic expression]"
     )
 
 
