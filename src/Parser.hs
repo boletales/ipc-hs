@@ -153,7 +153,7 @@ tokensToExpr =
       operators = [
             InfixR [(TokenImplies,Implies)]
           , InfixL [(TokenOr,Or),(TokenAnd,And)]
-          , Prefix [(TokenNot, (`Implies` ExprVar Bottom))]
+          , Prefix [(TokenNot, (`Implies` ExprBottom))]
         ]
 
       parseVar :: MyParserM Text
@@ -191,8 +191,8 @@ tokensToExpr =
           Nothing -> Ap.empty
         ) <|>
         parseBracket <|>
-        (ExprVar Bottom <$ consume TokenBottom) <|>
-        ((ExprVar <<< TypeVar) <$> parseVar)
+        (ExprBottom <$ consume TokenBottom) <|>
+        (ExprVar <$> parseVar)
 
   in runMyParserM (parseExpr operators)
 

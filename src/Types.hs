@@ -1,4 +1,5 @@
 {-# LANGUAGE OverloadedStrings #-}
+{-# LANGUAGE StrictData #-}
 
 module Types (
     TypeVar(..),
@@ -21,13 +22,28 @@ instance Show TypeVar where
   show Bottom = "⊥"
 
 data Expr =
-    ExprVar TypeVar
+    ExprVar Text
+  | ExprBottom
   | Implies Expr Expr
   | And Expr Expr
   | Or Expr Expr
   deriving (Eq, Ord)
 
+{- slow...
+instance Ord Expr where
+  compare e1 e2 = compare (toCompExpr e1) (toCompExpr e2)
+
+toCompExpr :: Expr -> Text
+toCompExpr expr = case expr of
+  ExprVar (TypeVar tv) -> tv
+  ExprVar  Bottom      -> "⊥"
+  Implies ex ex'       -> "!I" <> toCompExpr ex <> toCompExpr ex'
+  And ex ex'           -> "!A" <> toCompExpr ex <> toCompExpr ex'
+  Or ex ex'            -> "!O" <> toCompExpr ex <> toCompExpr ex'
+-}
+
 instance Show Expr where
+  show ExprBottom = "⊥"
   show (ExprVar tv) = show tv
 
   show (Implies (ExprVar v1) (ExprVar v2))    =        show (ExprVar v1) <>  " → "  <> show (ExprVar v2)

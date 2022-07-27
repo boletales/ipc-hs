@@ -1,2 +1,8 @@
 .stack-work/
+bin/
 *~
+*.hp
+*.prof
+*.log
+qnighy.hs
+bench.hs
