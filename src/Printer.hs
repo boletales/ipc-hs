@@ -26,23 +26,23 @@ showExprWithParsText t =
     TextExprVar _ -> showTypeText t
     _         -> "(" <> showTypeText t <> ")"
 
-getType :: Proof -> Either [Char] Expr
+getType :: Proof -> Either [Char] HashedExpr
 getType (ProofVar (LambdaVar n t))   = Right t
-getType (ProofAbs (LambdaVar n t) p) = Implies t <$> getType p
+getType (ProofAbs (LambdaVar n t) p) = hashedImplies t <$> getType p
 getType (ProofApp p1 p2) =
   case getType p1 of
     Left e -> Left e
-    Right (Implies t2 t1')
+    Right (HashedImplies _ t2 t1')
       | Right t2 == getType p2 -> Right t1'
     _ -> Left $ "cannot apply " <> show (getType p2) <> " to " <> show (getType p1) <> "!"
 
-getType (BuiltInTuple  t1 t2   ) = Right $ t1 `Implies` (t2 `Implies` (t1 `And` t2))
-getType (BuiltInFst    t1 t2   ) = Right $ (t1 `And` t2) `Implies` t1
-getType (BuiltInSnd    t1 t2   ) = Right $ (t1 `And` t2) `Implies` t2
-getType (BuiltInEither t1 t2 t3) = Right $ (t1 `Or` t2) `Implies` ((t1 `Implies` t3) `Implies` ((t2 `Implies` t3) `Implies` t3))
-getType (BuiltInLeft   t1 t2   ) = Right $ t1 `Implies` (t1 `Or` t2)
-getType (BuiltInRight  t1 t2   ) = Right $ t2 `Implies` (t1 `Or` t2)
-getType (BuiltInAbsurd t1      ) = Right $ ExprBottom `Implies` t1
+getType (BuiltInTuple  t1 t2   ) = Right $ t1 `hashedImplies` (t2 `hashedImplies` (t1 `hashedAnd` t2))
+getType (BuiltInFst    t1 t2   ) = Right $ (t1 `hashedAnd` t2) `hashedImplies` t1
+getType (BuiltInSnd    t1 t2   ) = Right $ (t1 `hashedAnd` t2) `hashedImplies` t2
+getType (BuiltInEither t1 t2 t3) = Right $ (t1 `hashedOr` t2) `hashedImplies` ((t1 `hashedImplies` t3) `hashedImplies` ((t2 `hashedImplies` t3) `hashedImplies` t3))
+getType (BuiltInLeft   t1 t2   ) = Right $ t1 `hashedImplies` (t1 `hashedOr` t2)
+getType (BuiltInRight  t1 t2   ) = Right $ t2 `hashedImplies` (t1 `hashedOr` t2)
+getType (BuiltInAbsurd t1      ) = Right $ hashedExprBottom `hashedImplies` t1
 
 
 showWithType :: Proof -> [Char]
@@ -56,7 +56,7 @@ showWithIndent revmap proof =
   let go level p =
         let indent = T.replicate (level*2) " "
         in case p of
-            ProofAbs (LambdaVar n t) p'  -> indent <> "(\\" <> n <> "::" <> showExprWithParsText (toTextExpr revmap t) <> " -> \n"
+            ProofAbs (LambdaVar n t) p'  -> indent <> "(\\" <> n <> "::" <> showExprWithParsText (hashedExprToTextExpr revmap t) <> " -> \n"
                                                    <> go (level + 1) p' <> "\n" <>
                                             indent <> ")"
             ProofApp (ProofApp p1 p2) p3 -> indent <> "(\n" <>
@@ -81,10 +81,10 @@ escapeLaTeX =
 
 toProofTree :: M.Map Int Text -> Proof -> Text
 toProofTree revmap prf =
-  let typeText p = either (const "ERROR!") (toTextExpr revmap >>> showTypeText) (getType p)
+  let typeText p = either (const "ERROR!") (hashedExprToTextExpr revmap >>> showTypeText) (getType p)
       go p =
         case p of
-          ProofVar (LambdaVar n t)    -> ["\\AxiomC{$["<> (toTextExpr revmap >>> showTypeText) t <>"]_{" <> n <> "}$}"]
+          ProofVar (LambdaVar n t)    -> ["\\AxiomC{$["<> (hashedExprToTextExpr revmap >>> showTypeText) t <>"]_{" <> n <> "}$}"]
           ProofAbs (LambdaVar n _) pr -> go pr <> ["\\RightLabel{${\\scriptsize \\, "<> n <>"}$}", "\\UnaryInfC{$" <> typeText p <> "$}"]
 
           ProofApp (ProofApp (BuiltInTuple ex ex') pr) pr' -> go pr <> go pr' <> ["\\RightLabel{${\\scriptsize \\, (∧\\mathrm{I})}$}", "\\BinaryInfC{$" <> typeText p <> "$}"]
@@ -110,7 +110,7 @@ toProofTree revmap prf =
 
 toProofTree2 :: M.Map Int Text -> Proof -> Text
 toProofTree2 revmap prf =
-  let typeText p = either (const "ERROR!") (toTextExpr revmap >>> showTypeText) (getType p)
+  let typeText p = either (const "ERROR!") (hashedExprToTextExpr revmap >>> showTypeText) (getType p)
       go p =
         case p of
           ProofVar (LambdaVar n t)    -> ["["<> tshow t <>"]_{" <> n <> "}"]
@@ -136,7 +136,7 @@ toProofTree2 revmap prf =
           BuiltInAbsurd ex            -> go (ProofAbs (LambdaVar "α" ex) (ProofApp (BuiltInAbsurd ex) (ProofVar (LambdaVar "α" ex))))
   in intercalate "\n" $ go (fst $ changeVarName prf 1 M.empty)
 
-changeVarName :: Proof -> Int -> Map Text Text -> (Proof, Int)
+changeVarName :: Proof -> Int -> M.Map Text Text -> (Proof, Int)
 changeVarName p i m =
   case p of
     ProofAbs (LambdaVar n t) p ->
@@ -186,13 +186,13 @@ showTypeText (TextOr           t1                   t2 )    = "(" <> showTypeTex
 
 toProofTree_cm_ayf :: M.Map Int Text -> Proof -> Text
 toProofTree_cm_ayf revmap prf =
-  let typeText p = either pack (toTextExpr revmap >>> showTypeText) (getType p)
+  let typeText p = either pack (hashedExprToTextExpr revmap >>> showTypeText) (getType p)
       go indents' indents p =
         indents' <> "+ " <> go1 indents' indents p
 
       go1 indents' indents p =
         case p of
-          ProofVar (LambdaVar n t)    -> showTypeText (toTextExpr revmap t) <> " from: " <> n <> "\n"
+          ProofVar (LambdaVar n t)    -> showTypeText (hashedExprToTextExpr revmap t) <> " from: " <> n <> "\n"
           ProofAbs (LambdaVar n _) pr -> typeText p <> "\n" <> go indents (indents<>"  ") pr
 
           ProofApp (ProofApp (BuiltInTuple ex ex') pr) pr' -> typeText p <> "\n" <> go indents (indents<>"| ") pr <> go indents (indents<>"  ") pr'

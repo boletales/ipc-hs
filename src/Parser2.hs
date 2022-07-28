@@ -16,8 +16,8 @@ import Data.List as L
 import Data.Coerce
 import Debug.Trace
 import Data.Attoparsec.Text as P
-import Data.Set as S
-import Data.Map as M
+import Data.HashSet as S
+import Data.HashMap.Lazy as M
 import Data.Maybe
 
 charBracketStart = '('

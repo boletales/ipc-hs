@@ -45,15 +45,15 @@ withLog parseerror failed succeed str =
         Left err  -> failed texpr err
         Right prf -> succeed texpr revmap prf
 
-withOutLog :: (Text -> IO ()) -> (Expr -> Text -> IO ()) -> (Expr -> M.Map Int Text -> Proof -> IO ()) -> Text -> IO ()
+withOutLog :: (Text -> IO ()) -> (TextExpr -> Text -> IO ()) -> (TextExpr -> M.Map Int Text -> Proof -> IO ()) -> Text -> IO ()
 withOutLog parseerror failed succeed str =
   case stringToTextExpr str of
     Left err -> parseerror err
     Right texpr -> do
       let (expr, revmap, result) = runIdentity $ tryProve (const (Identity ())) texpr
       case result of
-        Left err  -> failed expr err
-        Right prf -> succeed expr revmap prf
+        Left err  -> failed texpr err
+        Right prf -> succeed texpr revmap prf
 
 main''''' :: Text -> IO ()
 main''''' str = 
