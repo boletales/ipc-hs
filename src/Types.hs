@@ -78,13 +78,6 @@ data TextExpr =
   | TextOr TextExpr TextExpr
   deriving (Eq, Ord)
 
-<<<<<<< HEAD
-instance Show Expr where
-  show ExprBottom = "⊥"
-  show (ExprVar tv) = show tv
-=======
-instance Hashable HashedExpr where
-  hashWithSalt salt expr = getHash expr + salt
 {-
 
 
@@ -101,7 +94,6 @@ hashWithSalt' salt expr =
 instance Show HashedExpr where
   show (HashedExprBottom _) = "⊥"
   show (HashedExprVar _ tv) = show tv
->>>>>>> feature/hash
 
   show (HashedImplies _ (HashedExprVar h1 v1) (HashedExprVar h2 v2))    =        show (HashedExprVar h1 v1) <>  " → "  <> show (HashedExprVar h2 v2)
   show (HashedImplies _                t1     (HashedExprVar h2 v2))    = "(" <> show                   t1  <> ") → "  <> show (HashedExprVar h2 v2)
@@ -169,13 +161,8 @@ textExprtoHashedExpr expr =
 
           TextExprVar tv ->
             case M.lookup tv m of
-<<<<<<< HEAD
-              Nothing -> (ExprVar (i+1), i+1, M.insert tv (i+1) m, M.insert (i+1) tv revm)
-              Just j  -> (ExprVar j, i,  m, revm)
-=======
               Nothing -> (hashedExprVar (i+1), i+1, M.insert tv (i+1) m, M.insert (i+1) tv revm)
               Just j  -> (hashedExprVar j, i,  m, revm)
->>>>>>> feature/hash
 
           TextAnd t1 t2 ->
             let (e1, i' , m' , revm' ) = textExprtoHashedExpr' t1 i  m  revm
@@ -188,17 +175,10 @@ textExprtoHashedExpr expr =
             in  (hashedOr e1 e2, i'', m'', revm'')
 
           TextImplies t1 t2 ->
-<<<<<<< HEAD
-            let (e1, i' , m' , revm' ) = toNomalExpr' t1 i  m  revm
-                (e2, i'', m'', revm'') = toNomalExpr' t2 i' m' revm'
-            in  (Implies e1 e2, i'', m'', revm'')
-  in case toNomalExpr' expr 0 M.empty M.empty of (expr', _, _, revm) -> (expr', revm)
-=======
             let (e1, i' , m' , revm' ) = textExprtoHashedExpr' t1 i  m  revm
                 (e2, i'', m'', revm'') = textExprtoHashedExpr' t2 i' m' revm'
             in  (hashedImplies e1 e2, i'', m'', revm'')
   in case textExprtoHashedExpr' expr 1 M.empty M.empty of (expr', _, _, revm) -> (expr', revm)
->>>>>>> feature/hash
 
 hashedExprToTextExpr :: M.Map Int Text -> HashedExpr -> TextExpr
 hashedExprToTextExpr revm expr =
