@@ -17,14 +17,8 @@ module Types (
 import Data.Text
 import GHC.Stack
 import qualified Data.List as L
-import Data.Hashable
-import Data.Text.Encoding
-import Crypto.Hash.MD5 as MD5
-import qualified Data.ByteString as BS
 import Data.Map as M
 import Data.Maybe
-import GHC.Prim 
-import GHC.Types 
 
 data TypeVar =
   TypeVar Text |
@@ -50,21 +44,6 @@ data TextExpr =
   | TextAnd TextExpr TextExpr
   | TextOr TextExpr TextExpr
   deriving (Eq, Ord)
-
-instance Hashable Expr where
-  hashWithSalt (I# salt) expr = I# (lcgs (hashWithSalt' salt expr))
-
-lcgs i =
-  (48271# *# i) `remInt#` 0xffff#
-
-hashWithSalt' :: Int# -> Expr -> Int#
-hashWithSalt' salt expr =
-  case expr of
-    ExprVar (I# t) -> lcgs (salt +# t) -- case MD5.hash ( t) of hash -> fromIntegral (BS.index hash 0) + fromIntegral (BS.index hash 1) * 256 + fromIntegral (BS.index hash 2) * 65536 + fromIntegral (BS.index hash 3) * 16777216  
-    ExprBottom     -> lcgs salt
-    Implies e1 e2  -> lcgs (hashWithSalt' salt e1 *# 5# +# hashWithSalt' salt e2) *# 3# +# 0#
-    And     e1 e2  -> lcgs (hashWithSalt' salt e1 *# 5# +# hashWithSalt' salt e2) *# 3# +# 1#
-    Or      e1 e2  -> lcgs (hashWithSalt' salt e1 *# 5# +# hashWithSalt' salt e2) *# 3# +# 2#
 
 instance Show Expr where
   show ExprBottom = "⊥"

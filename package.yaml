@@ -27,11 +27,6 @@ dependencies:
 - mtl
 - random
 - attoparsec
-- hashable
-- unordered-containers
-- cryptohash-md5
-- bytestring
-- ghc-prim
 
 library:
   source-dirs: src
