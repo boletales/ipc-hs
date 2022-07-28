@@ -20,6 +20,7 @@ import Data.Maybe
 import Data.List as L
 import Debug.Trace
 import Data.Functor.Identity
+import Data.Bifunctor
 
 tshow :: Show a => a -> Text
 tshow = show >>> pack
@@ -69,7 +70,7 @@ getCandidates searching term goal haystack =
     case haystack of
       Implies t1 t2 
         | not (S.member t1 (L.head searching))
-                    ->     (\(p, ds, ts) -> (p, DirApply     :ds, t1:ts)) <$> getCandidates searching term goal t2
+                    ->    ((\(p, ds, ts) -> (p, DirApply     :ds, t1:ts)) <$> getCandidates searching term goal t2)
       And t1 t2     ->    ((\(p, ds, ts) -> (p, DirSnd t1 t2 :ds, ts   )) <$> getCandidates searching term goal t2)
                        <> ((\(p, ds, ts) -> (p, DirFst t1 t2 :ds, ts   )) <$> getCandidates searching term goal t1)
       Or  t1 t2     
@@ -99,10 +100,10 @@ batchApplicationWithDirection (p, ds, ex) ps =
 --       _        -> []
 --     ) =<< M.assocs boundvars
 
-{-# SPECIALIZE tryProve :: (Text -> IO ()) -> Expr -> ExceptT Text IO Proof #-}
-{-# SPECIALIZE tryProve :: (Text -> Identity ()) -> Expr -> ExceptT Text Identity Proof #-}
+{-# SPECIALIZE tryProve :: (Text -> IO ()) -> TextExpr -> IO (Expr, M.Map Int Text, Either Text Proof) #-}
+{-# SPECIALIZE tryProve :: (Text -> Identity ()) -> TextExpr -> Identity (Expr, M.Map Int Text, Either Text Proof) #-}
 --{-# INLINE tryProve#-}
-tryProve :: forall m. Monad m => (Text -> m ()) -> Expr -> ExceptT Text m Proof
+tryProve :: forall m. Monad m => (Text -> m ()) -> TextExpr -> m (Expr, M.Map Int Text, Either Text Proof)
 tryProve log' expr =
   let log  level t = lift (log' (T.replicate level "  " <> t))
       exit level t = log level t >> throwE (t <> "\n")
@@ -154,7 +155,7 @@ tryProve log' expr =
         if S.member goal (L.head searching') 
         then exit (level-1) "loop detected, exit" else
           let searching = S.insert goal (L.head searching') : L.tail searching'
-          in  log (level-1) (tshow (M.size boundvars)  <> " subgoal : " <> tshow goal) >>
+          in  log (level-1) (tshow (M.size boundvars)  <> " subgoal : " <> tshow goal ) >>
               case goal of
                 Implies t1 t2 ->
                   catchE (searchFromKnownTerms varcnt level boundvars goal) (\e -> 
@@ -192,4 +193,4 @@ tryProve log' expr =
                     catchE (searchFromKnownTerms varcnt level boundvars goal) (
                       \e -> useFunctions varcnt level boundvars searching goal [(BuiltInLeft t1 t2, [DirApply], [t1]), (BuiltInRight t1 t2, [DirApply], [t2])]
                     )
-  in go 0 1 M.empty [S.empty] expr
+  in (\(e, m) -> (e, m, ) <$> runExceptT (go 0 1 M.empty [S.empty] e)) (toNomalExpr expr)

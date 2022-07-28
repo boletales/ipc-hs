@@ -2,7 +2,7 @@
 {-# LANGUAGE TupleSections #-}
 {-# LANGUAGE LambdaCase #-}
 
-module Parser2 (stringToExpr) where
+module Parser2 (stringToTextExpr) where
 
 import Types
 import Control.Category as Cat
@@ -17,6 +17,8 @@ import Data.Coerce
 import Debug.Trace
 import Data.Attoparsec.Text as P
 import Data.Set as S
+import Data.Map as M
+import Data.Maybe
 
 charBracketStart = '('
 charBracketEnd   = ')'
@@ -68,20 +70,20 @@ tshow :: Show a => a -> Text
 tshow = show >>> T.pack
 
 
-stringToExpr :: Text -> Either Text Expr
-stringToExpr =
-  let parseVar :: Parser Expr
+stringToTextExpr :: Text -> Either Text TextExpr
+stringToTextExpr =
+  let parseVar :: Parser TextExpr
       parseVar = 
         P.skipSpace *> (
-              (P.char charBottom $> ExprBottom)
-          <|> (ExprVar <$> P.takeWhile1 isVarChar)
+              (P.char charBottom $> TextExprBottom)
+          <|> (TextExprVar <$> P.takeWhile1 isVarChar)
         )
 
-      parseParen :: Parser Expr
-      parseParen = (char charBracketStart *> parseExpr <* char charBracketEnd) <|> parseVar
+      parseParen :: Parser TextExpr
+      parseParen = (char charBracketStart *> parseTextExpr <* char charBracketEnd) <|> parseVar
 
-      parseNot :: Parser Expr
-      parseNot = ((`Implies` ExprBottom) <$ (char charNot <* P.skipSpace) <*> parseParen) <|> parseParen
+      parseNot :: Parser TextExpr
+      parseNot = ((`TextImplies` TextExprBottom) <$ (char charNot <* P.skipSpace) <*> parseParen) <|> parseParen
 
       parseInfixL op opchar parser =
         let go e =     (go =<< (op e <$ (P.skipSpace <* char opchar *> P.skipSpace) <*> parser))
@@ -93,16 +95,16 @@ stringToExpr =
                    <|> pure e
         in go =<< parser
 
-      parseAnd :: Parser Expr
-      parseAnd = parseInfixL And charAnd parseNot
+      parseAnd :: Parser TextExpr
+      parseAnd = parseInfixL TextAnd charAnd parseNot
 
-      parseOr :: Parser Expr
-      parseOr = parseInfixL Or charOr parseAnd
+      parseOr :: Parser TextExpr
+      parseOr = parseInfixL TextOr charOr parseAnd
 
-      parseImplies :: Parser Expr
-      parseImplies = parseInfixR Implies charImplies parseOr
+      parseImplies :: Parser TextExpr
+      parseImplies = parseInfixR TextImplies charImplies parseOr
 
-      parseExpr = parseImplies
+      parseTextExpr = parseImplies
 
   in (<> (T.singleton '\0')) >>>
           ( flip (Prelude.foldl (\str from -> T.replace from (T.singleton charImplies) str)) altsImplies
@@ -110,5 +112,4 @@ stringToExpr =
         >>> flip (Prelude.foldl (\str from -> T.replace from (T.singleton charOr     ) str)) altsOr
         >>> flip (Prelude.foldl (\str from -> T.replace from (T.singleton charNot    ) str)) altsNot
         >>> flip (Prelude.foldl (\str from -> T.replace from (T.singleton charBottom ) str)) altsBottom
-     )  >>> P.parse parseExpr >>> P.eitherResult >>> (\case; Left s -> Left (pack s); Right e -> Right e)
-
+     )  >>> P.parse parseTextExpr >>> P.eitherResult >>> (\case; Left s -> Left (pack s); Right e -> Right e)

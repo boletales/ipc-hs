@@ -38,11 +38,16 @@ library
   build-depends:
       attoparsec
     , base >=4.7 && <5
+    , bytestring
     , containers
+    , cryptohash-md5
+    , ghc-prim
+    , hashable
     , mtl
     , random
     , text
     , transformers
+    , unordered-containers
   default-language: Haskell2010
 
 executable ipc-hs-exe
@@ -52,16 +57,21 @@ executable ipc-hs-exe
       Paths_ipc_hs
   hs-source-dirs:
       app
-  ghc-options: -threaded -rtsopts
+  ghc-options: -threaded -rtsopts -fllvm
   build-depends:
       attoparsec
     , base >=4.7 && <5
+    , bytestring
     , containers
+    , cryptohash-md5
+    , ghc-prim
+    , hashable
     , ipc-hs
     , mtl
     , random
     , text
     , transformers
+    , unordered-containers
   default-language: Haskell2010
 
 executable ipc-hs-exe2
@@ -71,16 +81,21 @@ executable ipc-hs-exe2
       Paths_ipc_hs
   hs-source-dirs:
       app
-  ghc-options: -main-is Main2 -threaded -rtsopts
+  ghc-options: -main-is Main2 -threaded -rtsopts -fllvm
   build-depends:
       attoparsec
     , base >=4.7 && <5
+    , bytestring
     , containers
+    , cryptohash-md5
+    , ghc-prim
+    , hashable
     , ipc-hs
     , mtl
     , random
     , text
     , transformers
+    , unordered-containers
   default-language: Haskell2010
 
 test-suite ipc-hs-test
@@ -94,10 +109,15 @@ test-suite ipc-hs-test
   build-depends:
       attoparsec
     , base >=4.7 && <5
+    , bytestring
     , containers
+    , cryptohash-md5
+    , ghc-prim
+    , hashable
     , ipc-hs
     , mtl
     , random
     , text
     , transformers
+    , unordered-containers
   default-language: Haskell2010

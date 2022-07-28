@@ -6,6 +6,7 @@ module Printer(
     getType,
     showWithType,
     showWithIndent,
+    showTypeText,
     toProofTree,
     toProofTree2,
     toProofTree_cm_ayf
@@ -16,11 +17,14 @@ import Data.Text as T
 import GHC.Stack
 import qualified Data.List as L
 import Data.Map as M
+import Control.Category
+import Prelude hiding (id, (.))
 
-showExprWithPars t =
+showExprWithParsText :: TextExpr -> Text
+showExprWithParsText t =
   case t of
-    ExprVar _ -> show t
-    _         -> "(" <> show t <> ")"
+    TextExprVar _ -> showTypeText t
+    _         -> "(" <> showTypeText t <> ")"
 
 getType :: Proof -> Either [Char] Expr
 getType (ProofVar (LambdaVar n t))   = Right t
@@ -47,12 +51,12 @@ showWithType proof = "(" <> show proof <> ")::" <> either id show (getType proof
 tshow :: Show a => a -> Text
 tshow = pack . show
 
-showWithIndent :: Proof -> [Char]
-showWithIndent proof =
+showWithIndent :: M.Map Int Text -> Proof -> Text
+showWithIndent revmap proof =
   let go level p =
-        let indent = L.replicate (level*2) ' '
+        let indent = T.replicate (level*2) " "
         in case p of
-            ProofAbs (LambdaVar n t) p'  -> indent <> "(\\" <> unpack n <> "::" <> showExprWithPars t <> " -> \n"
+            ProofAbs (LambdaVar n t) p'  -> indent <> "(\\" <> n <> "::" <> showExprWithParsText (toTextExpr revmap t) <> " -> \n"
                                                    <> go (level + 1) p' <> "\n" <>
                                             indent <> ")"
             ProofApp (ProofApp p1 p2) p3 -> indent <> "(\n" <>
@@ -65,7 +69,7 @@ showWithIndent proof =
                                               go (level+1) p1 <> "\n" <>
                                               go (level+1) p2 <> "\n" <>
                                             indent <> ")"
-            _                            -> indent <> show p
+            _                            -> indent <> tshow p
   in go 0 proof
 
 escapeLaTeX =
@@ -75,12 +79,12 @@ escapeLaTeX =
   . replace "∨" "\\lor "
   . replace "￢" "\\lnot "
 
-toProofTree :: Proof -> Text
-toProofTree prf =
-  let typeText p = either (const "ERROR!") tshow (getType p)
+toProofTree :: M.Map Int Text -> Proof -> Text
+toProofTree revmap prf =
+  let typeText p = either (const "ERROR!") (toTextExpr revmap >>> showTypeText) (getType p)
       go p =
         case p of
-          ProofVar (LambdaVar n t)    -> ["\\AxiomC{$["<> tshow t <>"]_{" <> n <> "}$}"]
+          ProofVar (LambdaVar n t)    -> ["\\AxiomC{$["<> (toTextExpr revmap >>> showTypeText) t <>"]_{" <> n <> "}$}"]
           ProofAbs (LambdaVar n _) pr -> go pr <> ["\\RightLabel{${\\scriptsize \\, "<> n <>"}$}", "\\UnaryInfC{$" <> typeText p <> "$}"]
 
           ProofApp (ProofApp (BuiltInTuple ex ex') pr) pr' -> go pr <> go pr' <> ["\\RightLabel{${\\scriptsize \\, (∧\\mathrm{I})}$}", "\\BinaryInfC{$" <> typeText p <> "$}"]
@@ -104,9 +108,9 @@ toProofTree prf =
 
 
 
-toProofTree2 :: Proof -> Text
-toProofTree2 prf =
-  let typeText p = either (const "ERROR!") tshow (getType p)
+toProofTree2 :: M.Map Int Text -> Proof -> Text
+toProofTree2 revmap prf =
+  let typeText p = either (const "ERROR!") (toTextExpr revmap >>> showTypeText) (getType p)
       go p =
         case p of
           ProofVar (LambdaVar n t)    -> ["["<> tshow t <>"]_{" <> n <> "}"]
@@ -155,40 +159,40 @@ changeVarName p i m =
 typeVarToText (TypeVar x) = x
 typeVarToText Bottom = "⊥"
 
-showTypeText  ExprBottom  = "⊥"
-showTypeText (ExprVar tv) = tv
+showTypeText  TextExprBottom  = "⊥"
+showTypeText (TextExprVar tv) = tshow tv
 
-showTypeText (Implies (ExprVar v1) (ExprVar v2))    =        showTypeText (ExprVar v1) <>  " → "  <> showTypeText (ExprVar v2)
-showTypeText (Implies          t1  (ExprVar v2))    = "(" <> showTypeText          t1  <> ") → "  <> showTypeText (ExprVar v2)
-showTypeText (Implies (ExprVar v1) (Implies t2 t3)) =        showTypeText (ExprVar v1) <>  " → "  <> showTypeText (Implies t2 t3)
-showTypeText (Implies (ExprVar v1)          t2 )    =        showTypeText (ExprVar v1) <>  " → (" <> showTypeText          t2     <> ")"
-showTypeText (Implies          t1           t2 )    = "(" <> showTypeText          t1  <> ") → (" <> showTypeText          t2     <> ")"
+showTypeText (TextImplies (TextExprVar v1) (TextExprVar v2))    =        showTypeText (TextExprVar v1) <>  " → "  <> showTypeText (TextExprVar v2)
+showTypeText (TextImplies          t1      (TextExprVar v2))    = "(" <> showTypeText          t1      <> ") → "  <> showTypeText (TextExprVar v2)
+showTypeText (TextImplies (TextExprVar v1) (TextImplies t2 t3)) =        showTypeText (TextExprVar v1) <>  " → "  <> showTypeText (TextImplies t2 t3)
+showTypeText (TextImplies (TextExprVar v1)              t2 )    =        showTypeText (TextExprVar v1) <>  " → (" <> showTypeText          t2     <> ")"
+showTypeText (TextImplies          t1                   t2 )    = "(" <> showTypeText              t1  <> ") → (" <> showTypeText          t2     <> ")"
 
-showTypeText (And (ExprVar v1) (ExprVar v2))    =        showTypeText (ExprVar v1) <>  " ∧ "  <> showTypeText (ExprVar v2)
-showTypeText (And (And t1 t3)  (ExprVar v2))    =        showTypeText (And t1 t3)  <>  " ∧ "  <> showTypeText (ExprVar v2)
-showTypeText (And          t1  (ExprVar v2))    = "(" <> showTypeText          t1  <> ") ∧ "  <> showTypeText (ExprVar v2)
-showTypeText (And (ExprVar v1) (And t2 t3) )    =        showTypeText (ExprVar v1) <>  " ∧ "  <> showTypeText (And t2 t3)
-showTypeText (And (ExprVar v1)          t2 )    =        showTypeText (ExprVar v1) <>  " ∧ (" <> showTypeText          t2     <> ")"
-showTypeText (And (And t1 t2)  (And t3 t4) )    =        showTypeText (And t1 t2)  <>  " ∧ "  <> showTypeText (And t3 t4)
-showTypeText (And          t1           t2 )    = "(" <> showTypeText          t1  <> ") ∧ (" <> showTypeText          t2     <> ")"
+showTypeText (TextAnd (TextExprVar v1) (TextExprVar v2))    =        showTypeText (TextExprVar v1) <>  " ∧ "  <> showTypeText (TextExprVar v2)
+showTypeText (TextAnd (TextAnd t1 t3)  (TextExprVar v2))    =        showTypeText (TextAnd t1 t3)  <>  " ∧ "  <> showTypeText (TextExprVar v2)
+showTypeText (TextAnd          t1      (TextExprVar v2))    = "(" <> showTypeText              t1  <> ") ∧ "  <> showTypeText (TextExprVar v2)
+showTypeText (TextAnd (TextExprVar v1) (TextAnd t2 t3) )    =        showTypeText (TextExprVar v1) <>  " ∧ "  <> showTypeText (TextAnd t2 t3)
+showTypeText (TextAnd (TextExprVar v1)              t2 )    =        showTypeText (TextExprVar v1) <>  " ∧ (" <> showTypeText          t2     <> ")"
+showTypeText (TextAnd (TextAnd t1 t2)  (TextAnd t3 t4) )    =        showTypeText (TextAnd t1 t2)  <>  " ∧ "  <> showTypeText (TextAnd t3 t4)
+showTypeText (TextAnd          t1                   t2 )    = "(" <> showTypeText              t1  <> ") ∧ (" <> showTypeText          t2     <> ")"
 
-showTypeText (Or  (ExprVar v1) (ExprVar v2))    =        showTypeText (ExprVar v1) <>  " ∨ "  <> showTypeText (ExprVar v2)
-showTypeText (Or  (Or  t1 t3)  (ExprVar v2))    =        showTypeText (Or  t1 t3)  <>  " ∨ "  <> showTypeText (ExprVar v2)
-showTypeText (Or           t1  (ExprVar v2))    = "(" <> showTypeText          t1  <> ") ∨ "  <> showTypeText (ExprVar v2)
-showTypeText (Or  (ExprVar v1) (Or  t2 t3) )    =        showTypeText (ExprVar v1) <>  " ∨ "  <> showTypeText (Or  t2 t3)
-showTypeText (Or  (ExprVar v1)          t2 )    =        showTypeText (ExprVar v1) <>  " ∨ (" <> showTypeText          t2     <> ")"
-showTypeText (Or  (Or  t1 t2)  (Or  t3 t4) )    =        showTypeText (Or  t1 t2)  <>  " ∨ "  <> showTypeText (Or  t3 t4)
-showTypeText (Or           t1           t2 )    = "(" <> showTypeText          t1  <> ") ∨ (" <> showTypeText          t2     <> ")"
+showTypeText (TextOr  (TextExprVar v1) (TextExprVar v2))    =        showTypeText (TextExprVar v1) <>  " ∨ "  <> showTypeText (TextExprVar v2)
+showTypeText (TextOr  (TextOr  t1 t3)  (TextExprVar v2))    =        showTypeText (TextOr  t1 t3)  <>  " ∨ "  <> showTypeText (TextExprVar v2)
+showTypeText (TextOr           t1      (TextExprVar v2))    = "(" <> showTypeText              t1  <> ") ∨ "  <> showTypeText (TextExprVar v2)
+showTypeText (TextOr  (TextExprVar v1) (TextOr  t2 t3) )    =        showTypeText (TextExprVar v1) <>  " ∨ "  <> showTypeText (TextOr  t2 t3)
+showTypeText (TextOr  (TextExprVar v1)              t2 )    =        showTypeText (TextExprVar v1) <>  " ∨ (" <> showTypeText          t2     <> ")"
+showTypeText (TextOr  (TextOr  t1 t2)  (TextOr  t3 t4) )    =        showTypeText (TextOr  t1 t2)  <>  " ∨ "  <> showTypeText (TextOr  t3 t4)
+showTypeText (TextOr           t1                   t2 )    = "(" <> showTypeText              t1  <> ") ∨ (" <> showTypeText          t2     <> ")"
 
-toProofTree_cm_ayf :: Proof -> Text
-toProofTree_cm_ayf prf =
-  let typeText p = either pack showTypeText (getType p)
+toProofTree_cm_ayf :: M.Map Int Text -> Proof -> Text
+toProofTree_cm_ayf revmap prf =
+  let typeText p = either pack (toTextExpr revmap >>> showTypeText) (getType p)
       go indents' indents p =
         indents' <> "+ " <> go1 indents' indents p
 
       go1 indents' indents p =
         case p of
-          ProofVar (LambdaVar n t)    -> showTypeText t <> " from: " <> n <> "\n"
+          ProofVar (LambdaVar n t)    -> showTypeText (toTextExpr revmap t) <> " from: " <> n <> "\n"
           ProofAbs (LambdaVar n _) pr -> typeText p <> "\n" <> go indents (indents<>"  ") pr
 
           ProofApp (ProofApp (BuiltInTuple ex ex') pr) pr' -> typeText p <> "\n" <> go indents (indents<>"| ") pr <> go indents (indents<>"  ") pr'

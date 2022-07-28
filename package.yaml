@@ -27,6 +27,11 @@ dependencies:
 - mtl
 - random
 - attoparsec
+- hashable
+- unordered-containers
+- cryptohash-md5
+- bytestring
+- ghc-prim
 
 library:
   source-dirs: src
@@ -38,6 +43,7 @@ executables:
     ghc-options:
     - -threaded
     - -rtsopts
+    - -fllvm
     dependencies:
     - ipc-hs
 
@@ -48,6 +54,7 @@ executables:
     - -main-is Main2
     - -threaded
     - -rtsopts
+    - -fllvm
     dependencies:
     - ipc-hs
 

@@ -1,7 +1,7 @@
 {-# LANGUAGE OverloadedStrings #-}
 {-# LANGUAGE TupleSections #-}
 
-module Parser (stringToExpr) where
+module Parser (stringToTextExpr) where
 
 import Types
 import Control.Category as Cat
@@ -139,21 +139,21 @@ consumeInfixR t = do
     _ -> throwError ("expected \"" <> tshow t <> "\"")
 
 data Operator =
-    InfixR [(Token, Expr -> Expr -> Expr)]
-  | InfixL [(Token, Expr -> Expr -> Expr)]
-  | Prefix [(Token, Expr -> Expr)]
+    InfixR [(Token, TextExpr -> TextExpr -> TextExpr)]
+  | InfixL [(Token, TextExpr -> TextExpr -> TextExpr)]
+  | Prefix [(Token, TextExpr -> TextExpr)]
 
 foldWithTail :: (a -> t -> [t] -> a) -> a -> [t] -> a
 foldWithTail f initial xs = fst $ Prelude.foldl (\(acc, xs') x -> (f acc x (Prelude.tail xs') , Prelude.tail xs')) (initial, xs) xs
 
-type InfixChain = ([(Expr, Expr -> Expr -> Expr)], Expr)
+type InfixChain = ([(TextExpr, TextExpr -> TextExpr -> TextExpr)], TextExpr)
 
-tokensToExpr =
+tokensToTextExpr =
   let operators :: [Operator]
       operators = [
-            InfixR [(TokenImplies,Implies)]
-          , InfixL [(TokenOr,Or),(TokenAnd,And)]
-          , Prefix [(TokenNot, (`Implies` ExprBottom))]
+            InfixR [(TokenImplies,TextImplies)]
+          , InfixL [(TokenOr,TextOr),(TokenAnd,TextAnd)]
+          , Prefix [(TokenNot, (`TextImplies` TextExprBottom))]
         ]
 
       parseVar :: MyParserM Text
@@ -164,37 +164,37 @@ tokensToExpr =
           _ -> throwError "not a variable"
 
 
-      parseBracket :: MyParserM Expr
+      parseBracket :: MyParserM TextExpr
       parseBracket =
-        consume TokenBracketStart *> parseExpr operators <* consume TokenBracketEnd
+        consume TokenBracketStart *> parseTextExpr operators <* consume TokenBracketEnd
 
-      parseInfixChain :: [(Token, Expr -> Expr -> Expr)] -> [Operator] -> MyParserM InfixChain
+      parseInfixChain :: [(Token, TextExpr -> TextExpr -> TextExpr)] -> [Operator] -> MyParserM InfixChain
       parseInfixChain os ops = 
-        ((\e f (es, ex) -> ((e, f) : es, ex)) <$> parseExpr ops <*> consumeSelect os <*> parseInfixChain os ops) <|>
-        (([], ) <$> parseExpr ops)
+        ((\e f (es, ex) -> ((e, f) : es, ex)) <$> parseTextExpr ops <*> consumeSelect os <*> parseInfixChain os ops) <|>
+        (([], ) <$> parseTextExpr ops)
 
 
-      chainToExprInfixR :: InfixChain -> Expr
-      chainToExprInfixR (es, ex) = L.foldr (\(e1,f) e2 -> f e1 e2) ex es
+      chainToTextExprInfixR :: InfixChain -> TextExpr
+      chainToTextExprInfixR (es, ex) = L.foldr (\(e1,f) e2 -> f e1 e2) ex es
 
-      chainToExprInfixL :: InfixChain -> Expr
-      chainToExprInfixL (es, ex) = L.foldl (\f (e2, f')-> f' (f e2)) Cat.id es ex
+      chainToTextExprInfixL :: InfixChain -> TextExpr
+      chainToTextExprInfixL (es, ex) = L.foldl (\f (e2, f')-> f' (f e2)) Cat.id es ex
 
-      parseExpr :: [Operator] -> MyParserM Expr
-      parseExpr ops =
+      parseTextExpr :: [Operator] -> MyParserM TextExpr
+      parseTextExpr ops =
         (case L.uncons ops of
           Just (op, ops') -> 
             case op of
-              InfixR os -> chainToExprInfixR <$> parseInfixChain os ops'
-              InfixL os -> chainToExprInfixL <$> parseInfixChain os ops'
-              Prefix os -> consumeSelect os  <*> parseExpr (op:ops')
+              InfixR os -> chainToTextExprInfixR <$> parseInfixChain os ops'
+              InfixL os -> chainToTextExprInfixL <$> parseInfixChain os ops'
+              Prefix os -> consumeSelect os  <*> parseTextExpr (op:ops')
           Nothing -> Ap.empty
         ) <|>
         parseBracket <|>
-        (ExprBottom <$ consume TokenBottom) <|>
-        (ExprVar <$> parseVar)
+        (TextExprBottom <$ consume TokenBottom) <|>
+        (TextExprVar <$> parseVar)
 
-  in runMyParserM (parseExpr operators)
+  in runMyParserM (parseTextExpr operators)
 
 
 runMyParserM :: MyParserM a -> [Token] -> Either Text a
@@ -204,5 +204,5 @@ runMyParserM x tokens =
     Right (result, t:ts) -> Left $ "unexpected token " <> tshow t <> ""
     Left  err      -> Left err
 
-stringToExpr :: Text -> Either Text Expr
-stringToExpr = stringToTokens >>> tokensToExpr
+stringToTextExpr :: Text -> Either Text TextExpr
+stringToTextExpr = stringToTokens >>> tokensToTextExpr
