@@ -140,7 +140,7 @@ toNomalExpr expr =
           TextExprVar tv ->
             case M.lookup tv m of
               Nothing -> (ExprVar (i+1), i+1, M.insert tv (i+1) m, M.insert (i+1) tv revm)
-              Just j  -> (ExprVar j, j,  m, revm)
+              Just j  -> (ExprVar j, i,  m, revm)
 
           TextAnd t1 t2 ->
             let (e1, i' , m' , revm' ) = toNomalExpr' t1 i  m  revm
