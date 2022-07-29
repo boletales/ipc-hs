@@ -20,10 +20,10 @@ import Data.Map as M
 import Control.Category
 import Prelude hiding (id, (.))
 
-showExprWithParsText :: TextExpr -> Text
+showExprWithParsText :: HashedExpr -> Text
 showExprWithParsText t =
   case t of
-    TextExprVar _ -> showTypeText t
+    HashedExprVar _ _ -> showTypeText t
     _         -> "(" <> showTypeText t <> ")"
 
 getType :: Proof -> Either [Char] HashedExpr
@@ -51,12 +51,12 @@ showWithType proof = "(" <> show proof <> ")::" <> either id show (getType proof
 tshow :: Show a => a -> Text
 tshow = pack . show
 
-showWithIndent :: M.Map Int Text -> Proof -> Text
-showWithIndent revmap proof =
+showWithIndent :: Proof -> Text
+showWithIndent proof =
   let go level p =
         let indent = T.replicate (level*2) " "
         in case p of
-            ProofAbs (LambdaVar n t) p'  -> indent <> "(\\" <> n <> "::" <> showExprWithParsText (hashedExprToTextExpr revmap t) <> " -> \n"
+            ProofAbs (LambdaVar n t) p'  -> indent <> "(\\" <> n <> "::" <> showExprWithParsText t <> " -> \n"
                                                    <> go (level + 1) p' <> "\n" <>
                                             indent <> ")"
             ProofApp (ProofApp p1 p2) p3 -> indent <> "(\n" <>
@@ -81,10 +81,10 @@ escapeLaTeX =
 
 toProofTree :: M.Map Int Text -> Proof -> Text
 toProofTree revmap prf =
-  let typeText p = either (const "ERROR!") (hashedExprToTextExpr revmap >>> showTypeText) (getType p)
+  let typeText p = either (const "ERROR!") showTypeText (getType p)
       go p =
         case p of
-          ProofVar (LambdaVar n t)    -> ["\\AxiomC{$["<> (hashedExprToTextExpr revmap >>> showTypeText) t <>"]_{" <> n <> "}$}"]
+          ProofVar (LambdaVar n t)    -> ["\\AxiomC{$["<> showTypeText t <>"]_{" <> n <> "}$}"]
           ProofAbs (LambdaVar n _) pr -> go pr <> ["\\RightLabel{${\\scriptsize \\, "<> n <>"}$}", "\\UnaryInfC{$" <> typeText p <> "$}"]
 
           ProofApp (ProofApp (BuiltInTuple ex ex') pr) pr' -> go pr <> go pr' <> ["\\RightLabel{${\\scriptsize \\, (∧\\mathrm{I})}$}", "\\BinaryInfC{$" <> typeText p <> "$}"]
@@ -110,10 +110,10 @@ toProofTree revmap prf =
 
 toProofTree2 :: M.Map Int Text -> Proof -> Text
 toProofTree2 revmap prf =
-  let typeText p = either (const "ERROR!") (hashedExprToTextExpr revmap >>> showTypeText) (getType p)
+  let typeText p = either (const "ERROR!") showTypeText (getType p)
       go p =
         case p of
-          ProofVar (LambdaVar n t)    -> ["["<> tshow t <>"]_{" <> n <> "}"]
+          ProofVar (LambdaVar n t)    -> ["["<> showTypeText t <>"]_{" <> n <> "}"]
           ProofAbs (LambdaVar n _) pr ->                                                      go pr <>                                                 [typeText p <> "#" <> n]
 
           ProofApp (ProofApp (BuiltInTuple ex ex') pr) pr' ->                        ["{"] <> go pr <> [","] <> go pr' <>                     ["}"] <> [typeText p <> "#" <> "(∧I)"]
@@ -156,43 +156,15 @@ changeVarName p i m =
 
 
 
-typeVarToText (TypeVar x) = x
-typeVarToText Bottom = "⊥"
-
-showTypeText  TextExprBottom  = "⊥"
-showTypeText (TextExprVar tv) = tshow tv
-
-showTypeText (TextImplies (TextExprVar v1) (TextExprVar v2))    =        showTypeText (TextExprVar v1) <>  " → "  <> showTypeText (TextExprVar v2)
-showTypeText (TextImplies          t1      (TextExprVar v2))    = "(" <> showTypeText          t1      <> ") → "  <> showTypeText (TextExprVar v2)
-showTypeText (TextImplies (TextExprVar v1) (TextImplies t2 t3)) =        showTypeText (TextExprVar v1) <>  " → "  <> showTypeText (TextImplies t2 t3)
-showTypeText (TextImplies (TextExprVar v1)              t2 )    =        showTypeText (TextExprVar v1) <>  " → (" <> showTypeText          t2     <> ")"
-showTypeText (TextImplies          t1                   t2 )    = "(" <> showTypeText              t1  <> ") → (" <> showTypeText          t2     <> ")"
-
-showTypeText (TextAnd (TextExprVar v1) (TextExprVar v2))    =        showTypeText (TextExprVar v1) <>  " ∧ "  <> showTypeText (TextExprVar v2)
-showTypeText (TextAnd (TextAnd t1 t3)  (TextExprVar v2))    =        showTypeText (TextAnd t1 t3)  <>  " ∧ "  <> showTypeText (TextExprVar v2)
-showTypeText (TextAnd          t1      (TextExprVar v2))    = "(" <> showTypeText              t1  <> ") ∧ "  <> showTypeText (TextExprVar v2)
-showTypeText (TextAnd (TextExprVar v1) (TextAnd t2 t3) )    =        showTypeText (TextExprVar v1) <>  " ∧ "  <> showTypeText (TextAnd t2 t3)
-showTypeText (TextAnd (TextExprVar v1)              t2 )    =        showTypeText (TextExprVar v1) <>  " ∧ (" <> showTypeText          t2     <> ")"
-showTypeText (TextAnd (TextAnd t1 t2)  (TextAnd t3 t4) )    =        showTypeText (TextAnd t1 t2)  <>  " ∧ "  <> showTypeText (TextAnd t3 t4)
-showTypeText (TextAnd          t1                   t2 )    = "(" <> showTypeText              t1  <> ") ∧ (" <> showTypeText          t2     <> ")"
-
-showTypeText (TextOr  (TextExprVar v1) (TextExprVar v2))    =        showTypeText (TextExprVar v1) <>  " ∨ "  <> showTypeText (TextExprVar v2)
-showTypeText (TextOr  (TextOr  t1 t3)  (TextExprVar v2))    =        showTypeText (TextOr  t1 t3)  <>  " ∨ "  <> showTypeText (TextExprVar v2)
-showTypeText (TextOr           t1      (TextExprVar v2))    = "(" <> showTypeText              t1  <> ") ∨ "  <> showTypeText (TextExprVar v2)
-showTypeText (TextOr  (TextExprVar v1) (TextOr  t2 t3) )    =        showTypeText (TextExprVar v1) <>  " ∨ "  <> showTypeText (TextOr  t2 t3)
-showTypeText (TextOr  (TextExprVar v1)              t2 )    =        showTypeText (TextExprVar v1) <>  " ∨ (" <> showTypeText          t2     <> ")"
-showTypeText (TextOr  (TextOr  t1 t2)  (TextOr  t3 t4) )    =        showTypeText (TextOr  t1 t2)  <>  " ∨ "  <> showTypeText (TextOr  t3 t4)
-showTypeText (TextOr           t1                   t2 )    = "(" <> showTypeText              t1  <> ") ∨ (" <> showTypeText          t2     <> ")"
-
-toProofTree_cm_ayf :: M.Map Int Text -> Proof -> Text
-toProofTree_cm_ayf revmap prf =
-  let typeText p = either pack (hashedExprToTextExpr revmap >>> showTypeText) (getType p)
+toProofTree_cm_ayf :: Proof -> Text
+toProofTree_cm_ayf prf =
+  let typeText p = either pack (showTypeText) (getType p)
       go indents' indents p =
         indents' <> "+ " <> go1 indents' indents p
 
       go1 indents' indents p =
         case p of
-          ProofVar (LambdaVar n t)    -> showTypeText (hashedExprToTextExpr revmap t) <> " from: " <> n <> "\n"
+          ProofVar (LambdaVar n t)    -> showTypeText t <> " from: " <> n <> "\n"
           ProofAbs (LambdaVar n _) pr -> typeText p <> "\n" <> go indents (indents<>"  ") pr
 
           ProofApp (ProofApp (BuiltInTuple ex ex') pr) pr' -> typeText p <> "\n" <> go indents (indents<>"| ") pr <> go indents (indents<>"  ") pr'

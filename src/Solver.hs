@@ -185,10 +185,10 @@ hsinsert = HS.insert
 -}
 
 
-{-# SPECIALIZE tryProve :: (Text -> IO       ()) -> TextExpr -> IO       (HashedExpr, M.Map Int Text, Either Text Proof) #-}
-{-# SPECIALIZE tryProve :: (Text -> Identity ()) -> TextExpr -> Identity (HashedExpr, M.Map Int Text, Either Text Proof) #-}
+{-# SPECIALIZE tryProve :: (Text -> IO       ()) -> HashedExpr -> IO       (HashedExpr, Either Text Proof) #-}
+{-# SPECIALIZE tryProve :: (Text -> Identity ()) -> HashedExpr -> Identity (HashedExpr, Either Text Proof) #-}
 {-# INLINE tryProve#-}
-tryProve :: forall m. Monad m => (Text -> m ()) -> TextExpr -> m (HashedExpr, M.Map Int Text, Either Text Proof)
+tryProve :: forall m. Monad m => (Text -> m ()) -> HashedExpr -> m (HashedExpr, Either Text Proof)
 tryProve log' expr =
   let log  level t = lift (log' (T.replicate level "  " <> t))
       exit level t = log level t >> throwE (t <> "\n")
@@ -196,14 +196,14 @@ tryProve log' expr =
       searchFromKnownTerms varcnt level boundvars goal =
         case hmlookup goal boundvars of
           Just (_, proof) -> log  level ("found a known term " <> pack (showWithType proof)) >> pure proof
-          Nothing         -> exit level ("could not find known terms with type " <> tshow goal)
+          Nothing         -> exit level ("could not find known terms with type " <> showTypeText goal)
 
       useFunctions :: Int -> Int -> HashedExprMap (HashedExpr, Proof) -> [HashedExprSet] -> HashedExpr -> [(Proof, [Direction], [HashedExpr])] -> ExceptT Text m Proof
-      useFunctions varcnt level boundvars searching goal extrafunctions = do
+      useFunctions varcnt level boundvars searching goal extrafunctions = {-# SCC useFunctions #-} do
         log level ("searching proofs with type " <> tshow goal)
         let candidates = 
                  (hmmap (\(k, t) -> getCandidates searching t goal k) >>> hmelems >>> join) boundvars
-              <> extrafunctions
+              <> L.filter (\(p, d, e) -> not (L.any (\g' -> hsmember g' (L.head searching)) e)) extrafunctions
               <> [(BuiltInAbsurd goal , [DirApply],[hashedExprBottom])]
               -- <> orToCandidates goal boundvars
         --let candidates =
@@ -214,23 +214,23 @@ tryProve log' expr =
           foldM (\result (term, direction, argstype) ->
               case result of
                 Right _  -> pure result
-                Left memo ->
+                Left (memo, searching') ->
                   log level ("searching args for known term " <> pack (showWithType term) <> ", " <> tshow argstype) >> catchE (do
                     (memo', revargs) <- foldM (\(memo', args) goal' ->
                         case hmlookup goal' memo' of
-                          Just (Just (t, p)) -> log level ("already found " <> tshow goal') >> pure (memo', p:args)
-                          Just Nothing  -> throwE memo'
+                          Just (Just p) -> log level ("already found " <> tshow goal') >> pure (memo', p:args)
+                          Just Nothing  -> throwE (memo', searching')
                           Nothing ->
                             catchE (do
-                                arg <- go varcnt (level + 2) boundvars (searching) goal'
-                                pure (hminsert goal' (Just (goal', arg)) memo', arg:args)
+                                arg <- go varcnt (level + 2) boundvars (searching' : L.tail searching) goal'
+                                pure (hminsert goal' (Just arg) memo', arg:args)
                               ) (\e ->
-                                throwE (hminsert goal' Nothing memo')
+                                throwE (hminsert goal' Nothing memo', hsinsert goal' searching')
                               )
                       ) (memo, []) argstype
                     pure $ Right $ batchApplicationWithDirection (term, direction, argstype) (L.reverse revargs)
                   ) (\e -> log level "failed" >> pure (Left e))
-            ) (Left (hmmap Just boundvars) ) candidates
+            ) (Left (hmmap (\(t, p) -> Just p) boundvars, L.head searching) ) candidates
         case result of
           Right proof -> log  level ("found a proof " <> pack (showWithType proof)) >> pure proof
           Left  memo  -> exit level ("could not find a proof with type " <> tshow goal)
@@ -243,6 +243,7 @@ tryProve log' expr =
           in  log (level-1) (tshow (hmsize boundvars)  <> " subgoal : " <> tshow goal ) >>
               case goal of
                 HashedImplies h t1 t2 ->
+                  {-# SCC go_HashedImplies #-}
                   catchE (searchFromKnownTerms varcnt level boundvars goal) (\e -> 
                     case t1 of
                       HashedExprBottom h' -> do
@@ -259,23 +260,27 @@ tryProve log' expr =
                   )
 
                 HashedExprBottom h ->
+                    {-# SCC go_HashedExprBottom #-}
                     catchE (searchFromKnownTerms varcnt level boundvars goal) (
                       \e -> useFunctions varcnt level boundvars searching goal []
                     )
 
                 HashedExprVar h a ->
+                    {-# SCC go_HashedExprVar #-}
                     catchE (searchFromKnownTerms varcnt level boundvars goal) (
                       \e -> useFunctions varcnt level boundvars searching goal []
                     )
 
 
                 HashedAnd h t1 t2 ->
+                    {-# SCC go_HashedAnd #-}
                     catchE (searchFromKnownTerms varcnt level boundvars goal) (
                       \e -> useFunctions varcnt level boundvars searching goal [(BuiltInTuple t1 t2, [DirApply, DirApply], [t1, t2])]
                     )
 
-                HashedOr hiding t1 t2 ->
+                HashedOr h t1 t2 ->
+                    {-# SCC go_HashedOr #-}
                     catchE (searchFromKnownTerms varcnt level boundvars goal) (
                       \e -> useFunctions varcnt level boundvars searching goal [(BuiltInLeft t1 t2, [DirApply], [t1]), (BuiltInRight t1 t2, [DirApply], [t2])]
                     )
-  in (\(e, m) -> (e, m, ) <$> runExceptT (go 0 1 hmempty [hsempty] e)) (textExprtoHashedExpr expr)
+  in (\e -> (e, ) <$> runExceptT (go 0 1 hmempty [hsempty] e)) expr

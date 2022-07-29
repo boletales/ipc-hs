@@ -19,7 +19,7 @@ import System.Random
 import Control.Monad
 
 generateExprs 0 =
-  pure $ [TextExprBottom] <> ((T.singleton >>> TextExprVar) <$> "ABC")
+  pure $ [hashedExprBottom] <> ((T.singleton >>> hashedExprVar) <$> "ABC")
 
 generateExprs i = do
   mini <- generateExprs (i-1)
@@ -30,9 +30,9 @@ generateExprs i = do
   mini5 <- selectRandom (5 * i) mini
   mini6 <- selectRandom (5 * i) mini
   
-  pure ((TextAnd     <$> mini1 <*> mini2)
-     <> (TextOr      <$> mini3 <*> mini4)
-     <> (TextImplies <$> mini5 <*> mini6)
+  pure ((hashedAnd     <$> mini1 <*> mini2)
+     <> (hashedOr      <$> mini3 <*> mini4)
+     <> (hashedImplies <$> mini5 <*> mini6)
      <>  mini)
 
 selectRandom i xs =

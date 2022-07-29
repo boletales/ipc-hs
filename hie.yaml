@@ -1,0 +1,43 @@
+cradle:
+  stack:
+    - path: "./src"
+      component: "ipc-hs:lib"
+
+    - path: "./app/Main.hs"
+      component: "ipc-hs:exe:ipc-hs-exe"
+
+    - path: "./app/Main2.hs"
+      component: "ipc-hs:exe:ipc-hs-exe"
+
+    - path: "./app/Main3.hs"
+      component: "ipc-hs:exe:ipc-hs-exe"
+
+    - path: "./app/Paths_ipc_hs.hs"
+      component: "ipc-hs:exe:ipc-hs-exe"
+
+    - path: "./app/Main2.hs"
+      component: "ipc-hs:exe:ipc-hs-exe2"
+
+    - path: "./app/Main.hs"
+      component: "ipc-hs:exe:ipc-hs-exe2"
+
+    - path: "./app/Main3.hs"
+      component: "ipc-hs:exe:ipc-hs-exe2"
+
+    - path: "./app/Paths_ipc_hs.hs"
+      component: "ipc-hs:exe:ipc-hs-exe2"
+
+    - path: "./app/Main3.hs"
+      component: "ipc-hs:exe:ipc-hs-exe3"
+
+    - path: "./app/Main.hs"
+      component: "ipc-hs:exe:ipc-hs-exe3"
+
+    - path: "./app/Main2.hs"
+      component: "ipc-hs:exe:ipc-hs-exe3"
+
+    - path: "./app/Paths_ipc_hs.hs"
+      component: "ipc-hs:exe:ipc-hs-exe3"
+
+    - path: "./test"
+      component: "ipc-hs:test:ipc-hs-test"

@@ -1,0 +1,39 @@
+{-# LANGUAGE OverloadedStrings  #-}
+{-# LANGUAGE LambdaCase #-}
+{-# LANGUAGE BangPatterns #-}
+module Main3 where
+
+import Data.Text.IO as TIO
+import Data.Text as T
+import Data.IntSet as IS
+import Control.Monad
+import Data.List as L
+import Control.Applicative
+import Data.Bits
+
+main :: IO ()
+main = 
+  case tryAdd IS.empty (IS.fromList ((\x -> xorshift (x + 88172645463325252)) <$> [0 .. 16])) 0 of
+    Left  x -> TIO.putStrLn ("conflicted! hash size:" <> pack (show x))
+    Right x -> TIO.putStrLn ("test end! hash size:" <> pack (show x))
+
+xorshift i0 =
+  --(0x343FD * i + 0x269EC3) `rem` 0xFFFFFFFF
+  let i1 = xor i0 (shift i0 13)
+      i2 = xor i1 (shift i1 (-7))
+      i3 = xor i2 (shift i2 17)
+  in i3
+
+tryAdd hashs newhashs cnt = do
+  let hashs' = IS.union hashs newhashs
+  newhashs' <- foldM (\nh (i, j) -> do
+      let new0 = xorshift (i * 5 + j * 3 + 0)
+      let new1 = xorshift (i * 5 + j * 3 + 1)
+      let new2 = xorshift (i * 5 + j * 3 + 2)
+      when (IS.member new0 hashs' || IS.member new1 hashs' || IS.member new2 hashs') (Left (IS.size hashs))
+      when (IS.member new0 nh     || IS.member new1 nh     || IS.member new2 nh) (Left (IS.size hashs))
+      pure (IS.insert new2 (IS.insert new1 (IS.insert new0 nh)))
+    ) IS.empty (L.zip (IS.elems newhashs) (IS.elems hashs) <> L.zip (IS.elems hashs) (IS.elems newhashs) <> L.zip (IS.elems newhashs) (IS.elems newhashs))
+  if cnt >= 7
+    then Right (IS.size (IS.union hashs' newhashs'))
+    else tryAdd hashs' newhashs' (cnt + 1)

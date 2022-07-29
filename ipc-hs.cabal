@@ -26,6 +26,7 @@ source-repository head
 library
   exposed-modules:
       Etc
+      Lib
       Parser
       Parser2
       Printer

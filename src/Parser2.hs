@@ -2,7 +2,7 @@
 {-# LANGUAGE TupleSections #-}
 {-# LANGUAGE LambdaCase #-}
 
-module Parser2 (stringToTextExpr) where
+module Parser2 (stringToHashedExpr) where
 
 import Types
 import Control.Category as Cat
@@ -68,20 +68,20 @@ tshow :: Show a => a -> Text
 tshow = show >>> T.pack
 
 
-stringToTextExpr :: Text -> Either Text TextExpr
-stringToTextExpr =
-  let parseVar :: Parser TextExpr
+stringToHashedExpr :: Text -> Either Text HashedExpr
+stringToHashedExpr =
+  let parseVar :: Parser HashedExpr
       parseVar = 
         P.skipSpace *> (
-              (P.char charBottom $> TextExprBottom)
-          <|> (TextExprVar <$> P.takeWhile1 isVarChar)
+              (P.char charBottom $> hashedExprBottom)
+          <|> (hashedExprVar <$> P.takeWhile1 isVarChar)
         )
 
-      parseParen :: Parser TextExpr
+      parseParen :: Parser HashedExpr
       parseParen = (char charBracketStart *> parseTextExpr <* char charBracketEnd) <|> parseVar
 
-      parseNot :: Parser TextExpr
-      parseNot = ((`TextImplies` TextExprBottom) <$ (char charNot <* P.skipSpace) <*> parseParen) <|> parseParen
+      parseNot :: Parser HashedExpr
+      parseNot = ((`hashedImplies` hashedExprBottom) <$ (char charNot <* P.skipSpace) <*> parseParen) <|> parseParen
 
       parseInfixL op opchar parser =
         let go e =     (go =<< (op e <$ (P.skipSpace <* char opchar *> P.skipSpace) <*> parser))
@@ -93,14 +93,14 @@ stringToTextExpr =
                    <|> pure e
         in go =<< parser
 
-      parseAnd :: Parser TextExpr
-      parseAnd = parseInfixL TextAnd charAnd parseNot
+      parseAnd :: Parser HashedExpr
+      parseAnd = parseInfixL hashedAnd charAnd parseNot
 
-      parseOr :: Parser TextExpr
-      parseOr = parseInfixL TextOr charOr parseAnd
+      parseOr :: Parser HashedExpr
+      parseOr = parseInfixL hashedOr charOr parseAnd
 
-      parseImplies :: Parser TextExpr
-      parseImplies = parseInfixR TextImplies charImplies parseOr
+      parseImplies :: Parser HashedExpr
+      parseImplies = parseInfixR hashedImplies charImplies parseOr
 
       parseTextExpr = parseImplies
 

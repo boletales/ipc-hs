@@ -4,5 +4,7 @@ bin/
 *.hp
 *.prof
 *.log
+*.aux
+*.ps
 qnighy.hs
 bench.hs

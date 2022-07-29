@@ -1,7 +1,7 @@
 {-# LANGUAGE OverloadedStrings #-}
 {-# LANGUAGE TupleSections #-}
 
-module Parser (stringToTextExpr) where
+module Parser (stringToHashedExpr) where
 
 import Types
 import Control.Category as Cat
@@ -139,21 +139,21 @@ consumeInfixR t = do
     _ -> throwError ("expected \"" <> tshow t <> "\"")
 
 data Operator =
-    InfixR [(Token, TextExpr -> TextExpr -> TextExpr)]
-  | InfixL [(Token, TextExpr -> TextExpr -> TextExpr)]
-  | Prefix [(Token, TextExpr -> TextExpr)]
+    InfixR [(Token, HashedExpr -> HashedExpr -> HashedExpr)]
+  | InfixL [(Token, HashedExpr -> HashedExpr -> HashedExpr)]
+  | Prefix [(Token, HashedExpr -> HashedExpr)]
 
 foldWithTail :: (a -> t -> [t] -> a) -> a -> [t] -> a
 foldWithTail f initial xs = fst $ Prelude.foldl (\(acc, xs') x -> (f acc x (Prelude.tail xs') , Prelude.tail xs')) (initial, xs) xs
 
-type InfixChain = ([(TextExpr, TextExpr -> TextExpr -> TextExpr)], TextExpr)
+type InfixChain = ([(HashedExpr, HashedExpr -> HashedExpr -> HashedExpr)], HashedExpr)
 
-tokensToTextExpr =
+tokensToHashedExpr =
   let operators :: [Operator]
       operators = [
-            InfixR [(TokenImplies,TextImplies)]
-          , InfixL [(TokenOr,TextOr),(TokenAnd,TextAnd)]
-          , Prefix [(TokenNot, (`TextImplies` TextExprBottom))]
+            InfixR [(TokenImplies,hashedImplies)]
+          , InfixL [(TokenOr,hashedOr),(TokenAnd,hashedAnd)]
+          , Prefix [(TokenNot, (`hashedImplies` hashedExprBottom))]
         ]
 
       parseVar :: MyParserM Text
@@ -164,37 +164,37 @@ tokensToTextExpr =
           _ -> throwError "not a variable"
 
 
-      parseBracket :: MyParserM TextExpr
+      parseBracket :: MyParserM HashedExpr
       parseBracket =
-        consume TokenBracketStart *> parseTextExpr operators <* consume TokenBracketEnd
+        consume TokenBracketStart *> parseHashedExpr operators <* consume TokenBracketEnd
 
-      parseInfixChain :: [(Token, TextExpr -> TextExpr -> TextExpr)] -> [Operator] -> MyParserM InfixChain
+      parseInfixChain :: [(Token, HashedExpr -> HashedExpr -> HashedExpr)] -> [Operator] -> MyParserM InfixChain
       parseInfixChain os ops = 
-        ((\e f (es, ex) -> ((e, f) : es, ex)) <$> parseTextExpr ops <*> consumeSelect os <*> parseInfixChain os ops) <|>
-        (([], ) <$> parseTextExpr ops)
+        ((\e f (es, ex) -> ((e, f) : es, ex)) <$> parseHashedExpr ops <*> consumeSelect os <*> parseInfixChain os ops) <|>
+        (([], ) <$> parseHashedExpr ops)
 
 
-      chainToTextExprInfixR :: InfixChain -> TextExpr
-      chainToTextExprInfixR (es, ex) = L.foldr (\(e1,f) e2 -> f e1 e2) ex es
+      chainToHashedExprInfixR :: InfixChain -> HashedExpr
+      chainToHashedExprInfixR (es, ex) = L.foldr (\(e1,f) e2 -> f e1 e2) ex es
 
-      chainToTextExprInfixL :: InfixChain -> TextExpr
-      chainToTextExprInfixL (es, ex) = L.foldl (\f (e2, f')-> f' (f e2)) Cat.id es ex
+      chainToHashedExprInfixL :: InfixChain -> HashedExpr
+      chainToHashedExprInfixL (es, ex) = L.foldl (\f (e2, f')-> f' (f e2)) Cat.id es ex
 
-      parseTextExpr :: [Operator] -> MyParserM TextExpr
-      parseTextExpr ops =
+      parseHashedExpr :: [Operator] -> MyParserM HashedExpr
+      parseHashedExpr ops =
         (case L.uncons ops of
           Just (op, ops') -> 
             case op of
-              InfixR os -> chainToTextExprInfixR <$> parseInfixChain os ops'
-              InfixL os -> chainToTextExprInfixL <$> parseInfixChain os ops'
-              Prefix os -> consumeSelect os  <*> parseTextExpr (op:ops')
+              InfixR os -> chainToHashedExprInfixR <$> parseInfixChain os ops'
+              InfixL os -> chainToHashedExprInfixL <$> parseInfixChain os ops'
+              Prefix os -> consumeSelect os  <*> parseHashedExpr (op:ops')
           Nothing -> Ap.empty
         ) <|>
         parseBracket <|>
-        (TextExprBottom <$ consume TokenBottom) <|>
-        (TextExprVar <$> parseVar)
+        (hashedExprBottom <$ consume TokenBottom) <|>
+        (hashedExprVar <$> parseVar)
 
-  in runMyParserM (parseTextExpr operators)
+  in runMyParserM (parseHashedExpr operators)
 
 
 runMyParserM :: MyParserM a -> [Token] -> Either Text a
@@ -204,5 +204,5 @@ runMyParserM x tokens =
     Right (result, t:ts) -> Left $ "unexpected token " <> tshow t <> ""
     Left  err      -> Left err
 
-stringToTextExpr :: Text -> Either Text TextExpr
-stringToTextExpr = stringToTokens >>> tokensToTextExpr
+stringToHashedExpr :: Text -> Either Text HashedExpr
+stringToHashedExpr = stringToTokens >>> tokensToHashedExpr
