@@ -3,6 +3,7 @@
 {-# LANGUAGE DeriveAnyClass #-}
 {-# LANGUAGE DeriveGeneric #-}
 {-# LANGUAGE MagicHash #-}
+{-# LANGUAGE BangPatterns #-}
 
 module Types (
     TypeVar(..),
@@ -52,13 +53,14 @@ data HashedExpr =
   | HashedOr         Int HashedExpr HashedExpr
   deriving (Eq, Ord)
 
+xorshift :: Int -> Int
 xorshift i0 =
-  let i1 = xor i0 (shift i0 13)
-      i2 = xor i1 (shift i1 (-7))
-      i3 = xor i2 (shift i2 17)
+  let !i1 = xor i0 (unsafeShiftL i0 13)
+      !i2 = xor i1 (unsafeShiftR i1 7)
+      !i3 = xor i2 (unsafeShiftL i2 17)
   in i3
 
-{-# INLINE getHash #-}
+getHash :: HashedExpr -> Int
 getHash e =
   case e of
     HashedExprVar    h _   -> h
@@ -67,8 +69,10 @@ getHash e =
     HashedAnd        h _ _ -> h
     HashedOr         h _ _ -> h
 
+hashedExprSalt :: Int
 hashedExprSalt = 88172645463325252
 
+hashText :: Text -> Int
 hashText t = 
   let go t h =
         case T.uncons t of
@@ -76,10 +80,15 @@ hashText t =
           Nothing -> xorshift h
   in  go t hashedExprSalt
 
+hashedExprVar :: Text -> HashedExpr
 hashedExprVar v     = HashedExprVar    (hashText v) v
+hashedExprBottom :: HashedExpr
 hashedExprBottom    = HashedExprBottom (xorshift (0 + hashedExprSalt))
+hashedImplies :: HashedExpr -> HashedExpr -> HashedExpr
 hashedImplies e1 e2 = HashedImplies    (xorshift (getHash e1 * 5 + getHash e2 * 3 + 0)) e1 e2
+hashedAnd :: HashedExpr -> HashedExpr -> HashedExpr
 hashedAnd     e1 e2 = HashedAnd        (xorshift (getHash e1 * 5 + getHash e2 * 3 + 1)) e1 e2
+hashedOr :: HashedExpr -> HashedExpr -> HashedExpr
 hashedOr      e1 e2 = HashedOr         (xorshift (getHash e1 * 5 + getHash e2 * 3 + 2)) e1 e2
 
 
@@ -127,10 +136,12 @@ showTypeText (HashedOr _               t1                    t2     )    = "(" <
 
 
 
+typeVarToText :: TypeVar -> Text
 typeVarToText (TypeVar x) = x
 typeVarToText Bottom = "⊥"
 
 
+showExprWithPars :: HashedExpr -> String
 showExprWithPars t =
   case t of
     HashedExprVar _ _ -> show t
