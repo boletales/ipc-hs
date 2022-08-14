@@ -65,18 +65,19 @@ data Direction =
   | DirEither HashedExpr HashedExpr HashedExpr
   | DirApply deriving (Show, Eq)
 
-getCandidates :: HashedExprSet -> Proof -> HashedExpr -> HashedExpr -> [(Proof, [Direction], [HashedExpr])]
-getCandidates searching term goal haystack =
+getCandidates :: HashedExprSet -> HashedExprMap (HashedExpr, Proof) -> Proof -> HashedExpr -> HashedExpr -> [(Proof, [Direction], [HashedExpr])]
+getCandidates searching boundvars term goal haystack =
   if haystack == goal then [(term, [], [])]
   else
     case haystack of
       HashedImplies h t1 t2
         | not (hsmember t1 searching)
-                            ->    ((\(p, ds, ts) -> (p, DirApply     :ds, t1:ts)) <$> getCandidates searching term goal t2)
-      HashedAnd h t1 t2     ->    ((\(p, ds, ts) -> (p, DirSnd t1 t2 :ds, ts   )) <$> getCandidates searching term goal t2)
-                               <> ((\(p, ds, ts) -> (p, DirFst t1 t2 :ds, ts   )) <$> getCandidates searching term goal t1)
+                            ->    ((\(p, ds, ts) -> (p, DirApply     :ds, t1:ts)) <$> getCandidates searching boundvars term goal t2)
+      HashedAnd h t1 t2     ->    ((\(p, ds, ts) -> (p, DirSnd t1 t2 :ds, ts   )) <$> getCandidates searching boundvars term goal t2)
+                               <> ((\(p, ds, ts) -> (p, DirFst t1 t2 :ds, ts   )) <$> getCandidates searching boundvars term goal t1)
       HashedOr h t1 t2
-        | not (hsmember (hashedImplies t1 goal) searching) && not (hsmember (hashedImplies t2 goal) searching)
+        |    not (hsmember (hashedImplies t1 goal) searching) && not (hsmember (hashedImplies t2 goal) searching)
+          && not (hmmember t1 boundvars) && not (hmmember t2 boundvars)
                     ->     [(term, [DirEither t1 t2 goal, DirApply, DirApply], [hashedImplies t1 goal, hashedImplies t2 goal])]
       _ -> []
 
@@ -128,6 +129,10 @@ hmelems = IM.elems
 {-# INLINE hmempty #-}
 hmempty :: HashedExprMap a
 hmempty = IM.empty
+
+{-# INLINE hmmember #-}
+hmmember :: HashedExpr -> HashedExprMap a -> Bool
+hmmember e = IM.member (getHash e)
 
 type HashedExprSet = IS.IntSet
 
@@ -205,7 +210,7 @@ tryProve log' expr =
       useFunctions varcnt level boundvars auxvars searching goal extrafunctions = {-# SCC useFunctions #-} do
         log level ("searching proofs with type " <> tshow goal)
         let !candidates =
-                 (hmmap (\(k, t) -> getCandidates searching t goal k) >>> hmelems >>> join) boundvars
+                 (hmmap (\(k, t) -> getCandidates searching boundvars t goal k) >>> hmelems >>> join) boundvars
               <> L.filter (\(p, d, e) -> not (L.any (`hsmember` searching) e)) extrafunctions
               <> [(BuiltInAbsurd goal , [DirApply],[hashedExprBottom])]
               -- <> orToCandidates goal boundvars
@@ -226,6 +231,7 @@ tryProve log' expr =
                           Nothing ->
                             if hsmember goal' searching' then throwE (memo', searching') else
                               catchE (do
+                                  log level ("searching for " <> tshow goal')
                                   arg <- go varcnt (level + 2) boundvars memo' searching' goal'
                                   pure (hminsert goal' (goal', arg) memo', arg:args)
                                 ) (\e ->
@@ -242,9 +248,9 @@ tryProve log' expr =
       go :: Int -> Int -> HashedExprMap (HashedExpr, Proof) -> HashedExprMap (HashedExpr, Proof) -> HashedExprSet -> HashedExpr -> ExceptT HashedExprSet m Proof
       go varcnt level boundvars auxvars searching' goal =
         if hsmember goal searching'
-        then log (level-1) "loop detected, exit"  >> throwE searching' else
+        then log (level-1) ("loop detected, exit : " <> showTypeText goal)  >> throwE searching' else
           let searching = hsinsert goal searching'
-          in  log (level-1) (tshow (hmsize boundvars)  <> " subgoal : " <> tshow goal ) >>
+          in  log (level-1) (tshow (hmsize boundvars)  <> " subgoal : " <> showTypeText goal ) >>
               case goal of
                 HashedImplies h t1 t2 ->
                   {-# SCC go_HashedImplies #-}

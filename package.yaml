@@ -42,17 +42,6 @@ executables:
     dependencies:
     - ipc-hs
 
-  ipc-hs-exe2:
-    main:                Main2.hs
-    source-dirs:         app
-    ghc-options:
-    - -main-is Main2
-    - -threaded
-    - -rtsopts
-    - -fllvm
-    dependencies:
-    - ipc-hs
-
 tests:
   ipc-hs-test:
     main:                Spec.hs

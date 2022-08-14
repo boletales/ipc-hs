@@ -19,7 +19,7 @@ import System.Random
 import Control.Monad
 
 generateExprs 0 =
-  pure $ [hashedExprBottom] <> ((T.singleton >>> hashedExprVar) <$> "ABC")
+  pure $ [hashedExprBottom] <> ((T.singleton >>> hashedExprVar) <$> "ABCDE")
 
 generateExprs i = do
   mini <- generateExprs (i-1)

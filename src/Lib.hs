@@ -41,6 +41,8 @@ main' :: Text -> IO ()
 main'  = withOutLog TIO.putStrLn failedToProof (\expr prf -> TIO.putStrLn (toProofTree_cm_ayf prf))
 mainl :: Text -> IO ()
 mainl  = withOutLog TIO.putStrLn failedToProof (\expr prf -> TIO.putStrLn (showWithIndent     prf))
+maint :: Text -> IO ()
+maint  = withOutLog TIO.putStrLn failedToProof (\expr prf -> TIO.putStrLn (toProofTree2 prf))
 
 
 mainOX :: Text -> IO ()

@@ -108,33 +108,78 @@ toProofTree revmap prf =
 
 
 
-toProofTree2 :: M.Map Int Text -> Proof -> Text
-toProofTree2 revmap prf =
+toProofTree2 :: Proof -> Text
+toProofTree2 prf =
   let typeText p = either (const "ERROR!") showTypeText (getType p)
-      go p =
-        case p of
-          ProofVar (LambdaVar n t)    -> ["["<> showTypeText t <>"]_{" <> n <> "}"]
-          ProofAbs (LambdaVar n _) pr ->                                                      go pr <>                                                 [typeText p <> "#" <> n]
+      go :: Text -> Proof -> Text
+      go str p =
+        (case p of
+          ProofVar (LambdaVar n t)    
+            -> "[" <> showTypeText t <> "] from: " <> n <> str
+          ProofAbs (LambdaVar n t) pr
+            ->
+              go "" pr 
+              <> typeText p <> str <> " # (→I "<> n <> " :: " <> showTypeText t <> ")"
 
-          ProofApp (ProofApp (BuiltInTuple ex ex') pr) pr' ->                        ["{"] <> go pr <> [","] <> go pr' <>                     ["}"] <> [typeText p <> "#" <> "(∧I)"]
-          ProofApp (BuiltInFst ex ex') pr ->                                         ["{"] <> go pr <>                                        ["}"] <> [typeText p <> "#" <> "(∧E_1)"]
-          ProofApp (BuiltInSnd ex ex') pr ->                                         ["{"] <> go pr <>                                        ["}"] <> [typeText p <> "#" <> "(∧E_2)"]
-          ProofApp (ProofApp (ProofApp (BuiltInEither ex ex' ex'') pr ) (ProofAbs v2 pr')) (ProofAbs v3 pr'') -> ["{"] <> go pr <> [","] <> go pr' <> [","] <>  go pr'' <> ["}"] <> [typeText p <> "#" <> (if tshow v2 == tshow v3 then tshow v2 else tshow v2 <> "," <> tshow v3) <> " (∨E)"]
-          ProofApp (ProofApp (ProofApp (BuiltInEither ex ex' ex'') pr ) pr') pr'' -> ["{"] <> go pr <> [","] <> go pr' <> [","] <> go pr'' <> ["}"] <> [typeText p <> "#" <> "(∨E)"]
-          ProofApp (BuiltInLeft  ex ex') pr ->                                                go pr <>                                                 [typeText p <> "#" <> "(∨I_1)"]
-          ProofApp (BuiltInRight ex ex') pr ->                                                go pr <>                                                 [typeText p <> "#" <> "(∨I_1)"]
-          ProofApp (BuiltInAbsurd ex) pr ->                                                   go pr <>                                                 [typeText p <> "#" <> "(⊥E)"]
+          ProofApp (ProofApp (BuiltInTuple ex ex') pr) pr' 
+            ->    "{\n"
+                  <> go "" pr
+                  <> ",\n"
+                  <> go "" pr'
+               <> "}\n"
+               <> typeText p <> " # (∧I)"
+              
+          ProofApp (BuiltInFst ex ex') pr -> go "" pr
+          ProofApp (BuiltInSnd ex ex') pr -> go "" pr
+          ProofApp (ProofApp (ProofApp (BuiltInEither ex ex' ex'') pr ) (ProofAbs (LambdaVar n2 t2) pr')) (ProofAbs (LambdaVar n3 t3)  pr'') 
+            ->    "{\n" 
+                  <> go "" pr
+                  <> ",\n"
+                  <> go "" pr'
+                  <> ",\n"
+                  <> go "" pr'
+               <> "}\n"
+               <> typeText p
+                  <> (" # (∨E. left "<>n2<>":("<> showTypeText (hashedImplies ex' ex) <> ") , right"<>n3<>":("<> showTypeText (hashedImplies ex'' ex) <>"))")
+          ProofApp (ProofApp (ProofApp (BuiltInEither ex ex' ex'') pr ) pr') pr''
+            ->   "{\n" 
+                  <> go "" pr
+                  <> ",\n"
+                  <> go "" pr'
+                  <> ",\n"
+                  <> go "" pr'
+               <> "}\n"
+               <> typeText p <> " # (∨E')"
+          
+          ProofApp (BuiltInLeft  ex ex') pr
+            ->    go "" pr
+               <> typeText p <> str <> "# (∨I-L)"
+          
+          ProofApp (BuiltInRight  ex ex') pr
+            ->    go "" pr
+               <> typeText p <> str <> "# (∨I-R)"
+          ProofApp (BuiltInAbsurd ex) pr
+            ->    go "" pr
+               <> typeText p <> str <> "# (⊥E)"
 
-          ProofApp pr pr'             -> ["{"] <> go pr <> [","] <> go pr' <> ["}"] <> [typeText p]
+          ProofApp pr pr'             
+            ->   "{\n"
+                  <> go "" pr
+                  <> ",\n"
+                  <> go "" pr'
+               <> "}\n"
+               <> typeText p <> "# (→E)"
 
-          BuiltInTuple  ex ex'        -> go (ProofAbs (LambdaVar "α" ex) (ProofAbs (LambdaVar "β" ex') (ProofApp (ProofApp (BuiltInTuple ex ex') (ProofVar (LambdaVar "α" ex))) (ProofVar (LambdaVar "β" ex')))))
-          BuiltInFst    ex ex'        -> go (ProofAbs (LambdaVar "α" ex ) (ProofApp (BuiltInFst ex ex') (ProofVar (LambdaVar "α" ex))))
-          BuiltInSnd    ex ex'        -> go (ProofAbs (LambdaVar "α" ex') (ProofApp (BuiltInSnd ex ex') (ProofVar (LambdaVar "α" ex'))))
-          BuiltInEither ex ex' ex''   -> go (ProofAbs (LambdaVar "α" ex) (ProofAbs (LambdaVar "β" ex') (ProofAbs (LambdaVar "γ" ex'') (ProofApp (ProofApp (ProofApp (BuiltInEither ex ex' ex'') (ProofVar (LambdaVar "α" ex))) (ProofVar (LambdaVar "β" ex'))) (ProofVar (LambdaVar "γ" ex''))))))
-          BuiltInLeft   ex ex'        -> go (ProofAbs (LambdaVar "α" ex ) (ProofApp (BuiltInLeft ex ex') (ProofVar (LambdaVar "α" ex))))
-          BuiltInRight  ex ex'        -> go (ProofAbs (LambdaVar "α" ex') (ProofApp (BuiltInRight ex ex') (ProofVar (LambdaVar "α" ex'))))
-          BuiltInAbsurd ex            -> go (ProofAbs (LambdaVar "α" ex) (ProofApp (BuiltInAbsurd ex) (ProofVar (LambdaVar "α" ex))))
-  in intercalate "\n" $ go (fst $ changeVarName prf 1 M.empty)
+
+          BuiltInTuple  ex ex'        -> go "" (ProofAbs (LambdaVar "α" ex) (ProofAbs (LambdaVar "β" ex') (ProofApp (ProofApp (BuiltInTuple ex ex') (ProofVar (LambdaVar "α" ex))) (ProofVar (LambdaVar "β" ex')))))
+          BuiltInFst    ex ex'        -> go "" (ProofAbs (LambdaVar "α" ex ) (ProofApp (BuiltInFst ex ex') (ProofVar (LambdaVar "α" ex))))
+          BuiltInSnd    ex ex'        -> go "" (ProofAbs (LambdaVar "α" ex') (ProofApp (BuiltInSnd ex ex') (ProofVar (LambdaVar "α" ex'))))
+          BuiltInEither ex ex' ex''   -> go "" (ProofAbs (LambdaVar "α" ex) (ProofAbs (LambdaVar "β" ex') (ProofAbs (LambdaVar "γ" ex'') (ProofApp (ProofApp (ProofApp (BuiltInEither ex ex' ex'') (ProofVar (LambdaVar "α" ex))) (ProofVar (LambdaVar "β" ex'))) (ProofVar (LambdaVar "γ" ex''))))))
+          BuiltInLeft   ex ex'        -> go "" (ProofAbs (LambdaVar "α" ex ) (ProofApp (BuiltInLeft ex ex') (ProofVar (LambdaVar "α" ex))))
+          BuiltInRight  ex ex'        -> go "" (ProofAbs (LambdaVar "α" ex') (ProofApp (BuiltInRight ex ex') (ProofVar (LambdaVar "α" ex'))))
+          BuiltInAbsurd ex            -> go "" (ProofAbs (LambdaVar "α" ex) (ProofApp (BuiltInAbsurd ex) (ProofVar (LambdaVar "α" ex))))
+        ) <> "\n"
+  in go "" (fst $ changeVarName prf 1 M.empty)
 
 changeVarName :: Proof -> Int -> M.Map Text Text -> (Proof, Int)
 changeVarName p i m =
@@ -170,7 +215,8 @@ toProofTree_cm_ayf prf =
           ProofApp (ProofApp (BuiltInTuple ex ex') pr) pr' -> typeText p <> str <> "\n" <> go indents (indents<>"| ") "" pr <> go indents (indents<>"  ") "" pr'
           ProofApp (BuiltInFst ex ex') pr ->                  typeText p <> str <> "\n" <> go indents (indents<>"  ") "" pr
           ProofApp (BuiltInSnd ex ex') pr ->                  typeText p <> str <> "\n" <> go indents (indents<>"  ") "" pr
-          ProofApp (ProofApp (ProofApp (BuiltInEither ex ex' ex'') pr ) (ProofAbs (LambdaVar n2 t2) pr')) (ProofAbs (LambdaVar n3 t3)  pr'') -> typeText p <> "\n" <> go indents (indents<>"| ") (" ... {∨E. left:("<> showTypeText (hashedImplies ex' ex) <> ") , right:("<> showTypeText (hashedImplies ex'' ex) <>")}") pr <> go indents (indents<>"| ") (" ... {"<> n2 <> " (∨E) :: " <> showTypeText t2 <> "}") pr' <> go indents (indents<>"  ") (" ... {"<> n3 <> " (∨E) :: " <> showTypeText t3 <> "}") pr''
+          ProofApp (ProofApp (ProofApp (BuiltInEither ex ex' ex'') pr ) (ProofAbs (LambdaVar n2 t2) pr')) (ProofAbs (LambdaVar n3 t3)  pr'')
+            -> typeText p <> "\n" <> go indents (indents<>"| ") (" ... {∨E. left:("<> showTypeText (hashedImplies ex' ex) <> ") , right:("<> showTypeText (hashedImplies ex'' ex) <>")}") pr <> go indents (indents<>"| ") (" ... {"<> n2 <> " (∨E) :: " <> showTypeText t2 <> "}") pr' <> go indents (indents<>"  ") (" ... {"<> n3 <> " (∨E) :: " <> showTypeText t3 <> "}") pr''
           ProofApp (ProofApp (ProofApp (BuiltInEither ex ex' ex'') pr ) pr') pr'' -> typeText p <> "\n" <> go indents (indents<>"| ") "" pr <> go indents (indents<>"| ") "" pr' <> go indents (indents<>"  ") "" pr''
           ProofApp (BuiltInLeft  ex ex') pr -> typeText p <> str <> "\n" <> go indents (indents<>"  ") "" pr
           ProofApp (BuiltInRight ex ex') pr -> typeText p <> str <> "\n" <> go indents (indents<>"  ") "" pr

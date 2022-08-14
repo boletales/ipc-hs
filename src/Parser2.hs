@@ -81,7 +81,7 @@ stringToHashedExpr =
       parseParen = (char charBracketStart *> parseTextExpr <* char charBracketEnd) <|> parseVar
 
       parseNot :: Parser HashedExpr
-      parseNot = ((`hashedImplies` hashedExprBottom) <$ (char charNot <* P.skipSpace) <*> parseParen) <|> parseParen
+      parseNot = ((`hashedImplies` hashedExprBottom) <$ (char charNot <* P.skipSpace) <*> parseNot) <|> parseParen
 
       parseInfixL op opchar parser =
         let go e =     (go =<< (op e <$ (P.skipSpace <* char opchar *> P.skipSpace) <*> parser))
