@@ -40,10 +40,12 @@ library
       attoparsec
     , base >=4.7 && <5
     , containers
+    , hashable
     , mtl
     , random
     , text
     , transformers
+    , unordered-containers
   default-language: Haskell2010
 
 executable ipc-hs-exe
@@ -57,11 +59,13 @@ executable ipc-hs-exe
       attoparsec
     , base >=4.7 && <5
     , containers
+    , hashable
     , ipc-hs
     , mtl
     , random
     , text
     , transformers
+    , unordered-containers
   default-language: Haskell2010
 
 test-suite ipc-hs-test
@@ -76,9 +80,11 @@ test-suite ipc-hs-test
       attoparsec
     , base >=4.7 && <5
     , containers
+    , hashable
     , ipc-hs
     , mtl
     , random
     , text
     , transformers
+    , unordered-containers
   default-language: Haskell2010

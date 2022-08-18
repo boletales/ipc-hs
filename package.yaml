@@ -27,6 +27,8 @@ dependencies:
 - mtl
 - random
 - attoparsec
+- hashable
+- unordered-containers
 
 library:
   source-dirs: src

@@ -27,6 +27,7 @@ import Data.Maybe
 import Data.Text as T
 import Data.Char
 import Data.Bits
+import Data.Hashable
 
 data TypeVar =
   TypeVar Text |
@@ -53,6 +54,9 @@ data HashedExpr =
   | HashedOr         Int HashedExpr HashedExpr
   deriving (Eq, Ord)
 
+instance Hashable HashedExpr where
+  hashWithSalt salt e = getHash e + salt
+
 xorshift :: Int -> Int
 xorshift i0 =
   let !i1 = xor i0 (unsafeShiftL i0 13)
@@ -60,6 +64,7 @@ xorshift i0 =
       !i3 = xor i2 (unsafeShiftL i2 17)
   in i3
 
+{-# INLINE getHash #-}
 getHash :: HashedExpr -> Int
 getHash e =
   case e of

@@ -12,6 +12,8 @@ import Printer
 import Data.Text as T
 import Data.IntMap as IM
 import Data.IntSet as IS
+import Data.HashMap.Lazy as HM
+import Data.HashSet as HS
 import Data.Map as M
 import Control.Monad.Trans.Except
 import Control.Category
@@ -103,7 +105,7 @@ batchApplicationWithDirection (p, ds, ex) ps =
 --       _        -> []
 --     ) =<< M.assocs boundvars
 
-
+{-
 type HashedExprMap = IM.IntMap
 
 {-# INLINE hminsert #-}
@@ -148,7 +150,12 @@ hsmember e = IS.member (getHash e)
 hsinsert :: HashedExpr -> HashedExprSet -> HashedExprSet
 hsinsert e = IS.insert (getHash e)
 
-{-
+{-# INLINE hsunion #-}
+hsunion :: HashedExprSet -> HashedExprSet -> HashedExprSet
+hsunion = IS.union
+----}
+
+--{-
 type HashedExprMap = HM.HashMap HashedExpr
 
 {-# INLINE hminsert #-}
@@ -171,6 +178,10 @@ hmlookup = HM.lookup
 hmelems :: HashedExprMap a -> [a]
 hmelems = HM.elems
 
+{-# INLINE hmmember #-}
+hmmember :: HashedExpr -> HashedExprMap a -> Bool
+hmmember = HM.member
+
 {-# INLINE hmempty #-}
 hmempty :: HashedExprMap a
 hmempty = HM.empty
@@ -188,7 +199,11 @@ hsmember = HS.member
 {-# INLINE hsinsert #-}
 hsinsert :: HashedExpr -> HashedExprSet -> HashedExprSet
 hsinsert = HS.insert
--}
+
+{-# INLINE hsunion #-}
+hsunion :: HashedExprSet -> HashedExprSet -> HashedExprSet
+hsunion = HS.union
+---}
 
 
 {-# SPECIALIZE tryProve :: (Text -> IO       ()) -> HashedExpr -> IO       (HashedExpr, Either Text Proof) #-}
@@ -267,7 +282,7 @@ tryProve log' expr =
                         let auxvars'   = L.foldl' (\m (t, p) -> hminsert t (t, p) m) auxvars   (andToList (t1, ProofVar newvar))
                         let searching'' = if hmsize boundvars == hmsize boundvars' then searching else hsempty
                         log level ("abstruction " <> T.pack (showWithType (ProofVar newvar)))
-                        ProofAbs newvar <$> catchE (go (varcnt+1) (level + 1) boundvars' auxvars' searching'' t2) (throwE <<< IS.union searching)
+                        ProofAbs newvar <$> catchE (go (varcnt+1) (level + 1) boundvars' auxvars' searching'' t2) (throwE <<< hsunion searching)
                   )
 
                 HashedExprBottom h ->
