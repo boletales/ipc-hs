@@ -8,3 +8,4 @@ bin/
 *.ps
 qnighy.hs
 bench.hs
+.psc-ide-port

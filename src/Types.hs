@@ -55,7 +55,15 @@ data HashedExpr =
   deriving (Eq, Ord)
 
 instance Hashable HashedExpr where
-  hashWithSalt salt e = getHash e + salt
+  hash = getHash
+  hashWithSalt 0 e = getHash e
+  hashWithSalt s e = 
+    case e of
+      HashedExprVar    _ v   -> hashTextWithSalt s v
+      HashedExprBottom _     -> xorshift (0 + hashedExprSalt + s)
+      HashedImplies    _ a b -> xorshift (hashWithSalt s a * 5 + hashWithSalt s b * 3 + 0 + s)
+      HashedAnd        _ a b -> xorshift (hashWithSalt s a * 5 + hashWithSalt s b * 3 + 1 + s)
+      HashedOr         _ a b -> xorshift (hashWithSalt s a * 5 + hashWithSalt s b * 3 + 2 + s)
 
 xorshift :: Int -> Int
 xorshift i0 =
@@ -82,6 +90,14 @@ hashText t =
   let go t h =
         case T.uncons t of
           Just (c, t') -> go t' (xorshift h + ord c)
+          Nothing -> xorshift h
+  in  go t hashedExprSalt
+
+hashTextWithSalt :: Int -> Text -> Int
+hashTextWithSalt s t = 
+  let go t h =
+        case T.uncons t of
+          Just (c, t') -> go t' (xorshift h + ord c + s)
           Nothing -> xorshift h
   in  go t hashedExprSalt
 
